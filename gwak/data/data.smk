@@ -16,6 +16,20 @@ wildcard_constraints:
     ifos = '|'.join([x for x in ifo_configs]),
     segment_type = '|'.join([x for x in segment_types])
 
+rule get_token:
+    output: token_log = "tmp/token_ready.txt"
+    shell:
+        """
+        echo " "
+        echo " "
+        echo "Get scitoken..."
+        echo " "
+        echo "    Check if any window pops up automatically."
+        echo " "
+        echo " "
+        htgettoken -a vault.ligo.org -i igwn
+        echo "Token obtained at $(date)" > {output}
+        """
 
 rule pull_O3a_data:
     input:
@@ -44,21 +58,6 @@ rule find_valid_segments:
             --segment-type {wildcards.segment_type} \
             --ifos {wildcards.ifos} \
             --save-path {output.save_path}'
-
-rule get_token:
-    output: token_log = "tmp/token_ready.txt"
-    shell:
-        """
-        echo " "
-        echo " "
-        echo "Get scitoken..."
-        echo " "
-        echo "    Check if any window pops up automatically."
-        echo " "
-        echo " "
-        htgettoken -a vault.ligo.org -i igwn 
-        echo "Token obtained at $(date)" > {output}
-        """
 
 rule pull_data:
     input:

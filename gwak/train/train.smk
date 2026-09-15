@@ -14,7 +14,7 @@ fm_configs = [
     "NF_from_file.test",
     'FM_multiSignalAndBkg',
 ]
-
+signal_type = "noise"
 wildcard_constraints:
     ifo_mode   = '|'.join([x for x in ifo_modes]),
     data_ver   = '|'.join([x for x in data_ver_to_path.keys()]),
@@ -72,7 +72,7 @@ rule precompute_embeddings:
         )
     output:
         precom_data_dir = directory(
-            OUTPUT_DIR / "data/{ifo_mode}/{data_ver}/{cl_config}_{coh_mode}"
+            OUTPUT_DIR / "data/{ifo_mode}/{data_ver}/{cl_config}_{coh_mode}/noise"
         )
     params:
         gwak_env = GWAK_ROOT / ".gwak/env.sh",
@@ -92,6 +92,7 @@ rule precompute_embeddings:
             --embeddings {output.precom_data_dir}/embeddings.npy \
             --labels {output.precom_data_dir}/labels.npy \
             --correlations {output.precom_data_dir}/correlations.npy \
+            --signal-type noise \
             --nevents 100000 '
 
 rule train_fm:
@@ -158,6 +159,47 @@ rule make_offline_dataset:
             {params.dataset}'
 
 
+rule make_signal_embeddings:
+    input:
+        arg = GWAK_ROOT / "gwak/train/train/precompute_embeddings.py",
+        config = GWAK_ROOT / "gwak/train/configs/{cl_config}.yaml",
+        embedding_model = expand(
+            rules.train_cl.output.model,
+            ifo_mode="{ifo_mode}",
+            data_ver="{data_ver}",
+            cl_config="{cl_config}",
+        ),
+        data_dir = lambda wildcards: directory(
+            DATA_DIR
+            / data_ver_to_path[wildcards.data_ver]
+            / wildcards.ifo_mode
+        )
+    output:
+        precom_data_dir = directory(
+            OUTPUT_DIR / "data/{ifo_mode}/{data_ver}/{cl_config}_{coh_mode}/all"
+        )
+    params:
+        gwak_env = GWAK_ROOT / ".gwak/env.sh",
+        pyproject = GWAK_ROOT / "gwak/train/pyproject.toml",
+        omicron = DATA_DIR / "O4_MDC_background/omicron/{ifo_mode}",
+    shell:
+        'source {params.gwak_env}; uv run \
+            --project {params.pyproject} python {input.arg} \
+            --data-dir {input.data_dir} \
+            --ifos {wildcards.ifo_mode} \
+            --config {input.config} \
+            --embedding-model {input.embedding_model} \
+            --coh_mode {wildcards.coh_mode} \
+            --glitch-root {params.omicron} \
+            --means {output.precom_data_dir}/means.npy \
+            --stds {output.precom_data_dir}/stds.npy \
+            --embeddings {output.precom_data_dir}/embeddings.npy \
+            --labels {output.precom_data_dir}/labels.npy \
+            --correlations {output.precom_data_dir}/correlations.npy \
+            --signal-type all \
+            --nevents 100000 '
+
+
 # rule compare_embeddings:
 #     input:
 #         data_dir = DATA_DIR / "O4_MDC_background-chunked/HL/"
@@ -173,60 +215,6 @@ rule make_offline_dataset:
 #             --output {params.plot_dir} \
 #             --nevents 1024'
 
-
-# rule precompute_wnb_embeddings_classifier:
-#     params:
-#         embedding_model = expand(rules.train_cl.output.model,
-#             cl_config='ResNet',
-#             ifos='HL'),
-#         data_dir = DATA_DIR / 'O4_MDC_background-chunked/HL/',
-#         config = GWAK_ROOT / 'gwak/train/configsResNet.yaml'
-#     output:
-#         means = OUTPUT_DIR / 'ResNet_wnb_HL/means.npy',
-#         stds = OUTPUT_DIR / 'ResNet_wnb_HL/stds.npy',
-#         embeddings = OUTPUT_DIR / 'ResNet_wnb_HL/embeddings.npy',
-#         correlations = OUTPUT_DIR / 'ResNet_wnb_HL/correlations.npy',
-#         labels = OUTPUT_DIR / 'ResNet_wnb_HL/labels.npy'
-#     shell:
-#         'cd gwak/train; uv run python train/precompute_embeddings.py \
-#             --embedding-model {params.embedding_model} \
-#             --data-dir {params.data_dir} \
-#             --config {params.config} \
-#             --ifos HL \
-#             --embeddings {output.embeddings} \
-#             --labels {output.labels} \
-#             --correlations {output.correlations} \
-#             --means {output.means} \
-#             --stds {output.stds} \
-#             --include-signals WNB \
-#             --nevents 200000 '
-
-# rule precompute_sg_embeddings_classifier:
-#     params:
-#         embedding_model = expand(rules.train_cl.output.model,
-#             cl_config='ResNet',
-#             ifos='HL'),
-#         data_dir = DATA_DIR / 'O4_MDC_background-chunked/HL/',
-#         config = GWAK_ROOT / 'gwak/train/configs/ResNet.yaml'
-#     output:
-#         means = OUTPUT_DIR / 'ResNet_sg_HL/means.npy',
-#         stds = OUTPUT_DIR / 'ResNet_sg_HL/stds.npy',
-#         embeddings = OUTPUT_DIR / 'ResNet_sg_HL/embeddings.npy',
-#         correlations = OUTPUT_DIR / 'ResNet_sg_HL/correlations.npy',
-#         labels = OUTPUT_DIR / 'ResNet_sg_HL/labels.npy'
-#     shell:
-#         'cd gwak/train; uv run python train/precompute_embeddings.py \
-#             --embedding-model {params.embedding_model} \
-#             --data-dir {params.data_dir} \
-#             --config {params.config} \
-#             --ifos HL \
-#             --embeddings {output.embeddings} \
-#             --labels {output.labels} \
-#             --correlations {output.correlations} \
-#             --means {output.means} \
-#             --stds {output.stds} \
-#             --include-signals SG \
-#             --nevents 200000 '
 
 # rule train_wnb_classifier:
 #     params:

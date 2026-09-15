@@ -95,7 +95,7 @@ if __name__=='__main__':
     parser.add_argument('--means', type=str, default=None)
     parser.add_argument('--stds', type=str, default=None)
     parser.add_argument('--nevents', type=int, default=10000)
-    parser.add_argument('--include-signals', default=None, help='Use signal_classes, priors, waveforms from config if set')
+    parser.add_argument('--signal-type', default=None, help='Use signal_classes, priors, waveforms from config if set')
     parser.add_argument('--dataset-path', type=str, default=None,
                         help='Path to a saved dataset (.npz or .h5) with shape (N,2,T). If provided, embeddings are computed on it instead of generating on the fly.')
     
@@ -114,14 +114,13 @@ if __name__=='__main__':
     psd_length = config['data']['init_args']['psd_length']
     fduration = config['data']['init_args']['fduration']
     fftlength = config['data']['init_args']['fftlength']
-    batch_size = 128
+    batch_size = 2048
     batches_per_epoch = 2000000
     num_workers = config['data']['init_args']['num_workers']
     data_saving_file = config['data']['init_args']['data_saving_file']
 
     duration = fduration + kernel_length
-
-    if args.include_signals in ['All', 'ALL', 'all']:
+    if args.signal_type in ['All', 'ALL', 'all']:
         signal_classes = [
             "SineGaussian",
             "BBH",
@@ -150,32 +149,39 @@ if __name__=='__main__':
             SineGaussian(sample_rate=sample_rate, duration=duration),
             IMRPhenomPv2(),
             Gaussian(sample_rate=sample_rate, duration=duration),
-            GenerateString(sample_rate=sample_rate),
-            GenerateString(sample_rate=sample_rate),
-            GenerateString(sample_rate=sample_rate),
+            GenerateString(sample_rate=sample_rate, duration=duration),
+            GenerateString(sample_rate=sample_rate, duration=duration),
+            GenerateString(sample_rate=sample_rate, duration=duration),
             WhiteNoiseBurst(sample_rate=sample_rate, duration=duration),
             None,
             None,
             None,
         ]
-        extra_kwargs = [None, {"ringdown_duration": 0.9}, None, None, None, None, None, None, None, None]
+        extra_kwargs = [
+            None, {"ringdown_duration": 0.9}, None, 
+            None, None, None, 
+            None, 
+            None, 
+            None, None
+        ]
 
-    elif args.include_signals in ['WNB', 'wnb']:
+    elif args.signal_type in ['WNB', 'wnb']:
         signal_classes = ["WhiteNoiseBurst", "Background", "Glitch"]
         priors = [WhiteNoiseBurstBBC(), None, None]
         waveforms = [WhiteNoiseBurst(sample_rate=sample_rate, duration=duration), None, None]
         extra_kwargs = [None, None, None]
-    elif args.include_signals in ['SG', 'sg']:
+    elif args.signal_type in ['SG', 'sg']:
         signal_classes = ["SineGaussian", "Background", "Glitch"]
         priors = [SineGaussianBBC(), None, None]
         waveforms = [SineGaussian(sample_rate=sample_rate, duration=duration), None, None]
         extra_kwargs = [None, None, None]
-    elif args.include_signals is None:
+    elif args.signal_type in ["Noise", "noise"]:
         signal_classes = ['Glitch', 'Background']
         priors = [None, None]
         waveforms = [None, None]
         extra_kwargs = [None, None]
 
+    all_processed = []
     all_labels = []
     all_embeddings = []
     all_correlations = []
@@ -228,63 +234,70 @@ if __name__=='__main__':
 
     # ========== BRANCH: generate on the fly ==========
     else:
-        loader = SignalDataloader(
-            signal_classes, priors, waveforms, extra_kwargs,
-            data_dir=args.data_dir,
-            sample_rate=sample_rate,
-            kernel_length=kernel_length,
-            psd_length=psd_length,
-            fduration=fduration,
-            fftlength=fftlength,
-            batch_size=batch_size,
-            batches_per_epoch=batches_per_epoch,
-            num_workers=num_workers,
-            data_saving_file=data_saving_file,
-            ifos=args.ifos,
-            snr_prior=torch.distributions.Uniform(3, 30),
-            glitch_root=args.glitch_root
-        )
+        with torch.no_grad():
+            loader = SignalDataloader(
+                signal_classes, priors, waveforms, extra_kwargs,
+                data_dir=args.data_dir,
+                sample_rate=sample_rate,
+                kernel_length=kernel_length,
+                psd_length=psd_length,
+                fduration=fduration,
+                fftlength=fftlength,
+                batch_size=batch_size,
+                batches_per_epoch=batches_per_epoch,
+                num_workers=num_workers,
+                data_saving_file=data_saving_file,
+                ifos=args.ifos,
+                snr_prior=torch.distributions.Uniform(6, 40),
+                glitch_root=args.glitch_root
+            )
 
-        n_iter = args.nevents // batch_size
-        train_loader = loader.train_dataloader()
-        train_iter = iter(train_loader)
-        for i in range(n_iter):
+            n_iter = args.nevents // batch_size
+            train_loader = loader.train_dataloader()
+            train_iter = iter(train_loader)
 
-            if i % 10 == 0:
-                print(f"Processed batch {i}/{n_iter}")
+            for i in range(n_iter):
 
-            clean_batch, glitch_batch = next(train_iter)
-            clean_batch = clean_batch.to(device)
-            glitch_batch = glitch_batch.to(device)
+                if i % 10 == 0:
+                    print(f"Processed batch {i}/{n_iter}")
 
-            processed, labels, _, _ = loader.on_after_batch_transfer([clean_batch, glitch_batch], None, local_test=True)
+                clean_batch, glitch_batch = next(train_iter)
+                clean_batch = clean_batch.to(device)
+                glitch_batch = glitch_batch.to(device)
 
-            if processed.shape[0] == 0:
-                del clean_batch, glitch_batch
+                processed, labels, _, _ = loader.on_after_batch_transfer([clean_batch, glitch_batch], None, local_test=True)
+
+                if processed.shape[0] == 0:
+                    del clean_batch, glitch_batch
+                    torch.cuda.empty_cache()
+                    continue
+                all_processed.append(processed.cpu().detach().numpy())
+                embeddings = embed_model(processed).cpu().detach().numpy()
+                if args.correlations:
+                    correlations = frequency_cos_similarity(
+                        processed,
+                        mode=args.coh_mode
+                    ).cpu().detach().numpy()
+
+                all_labels.append(labels.cpu().detach().numpy())
+                all_embeddings.append(embeddings)
+                if args.correlations:
+                    all_correlations.append(correlations)
+
+                del clean_batch, glitch_batch, processed, embeddings
                 torch.cuda.empty_cache()
-                continue
 
-            embeddings = embed_model(processed).cpu().detach().numpy()
-            if args.correlations:
-                correlations = frequency_cos_similarity(
-                    processed,
-                    mode=args.coh_mode
-                ).cpu().detach().numpy()
-
-            all_labels.append(labels.cpu().detach().numpy())
-            all_embeddings.append(embeddings)
-            if args.correlations:
-                all_correlations.append(correlations)
-
-            del clean_batch, glitch_batch, processed, embeddings
-            torch.cuda.empty_cache()
 
     # ---------- save outputs ----------
+    all_processed = np.concatenate(all_processed, axis=0) if len(all_processed) else np.empty((0,), dtype=np.int32)
     all_labels = np.concatenate(all_labels, axis=0) if len(all_labels) else np.empty((0,), dtype=np.int32)
     all_embeddings = np.concatenate(all_embeddings, axis=0) if len(all_embeddings) else np.empty((0, 0), dtype=np.float32)
     if args.correlations:
         all_correlations = np.concatenate(all_correlations, axis=0) if len(all_correlations) else np.empty((0, 1), dtype=np.float32)
-    Path(args.labels).parent.mkdir(parents=True, exist_ok=True)
+    saving_dir = Path(args.labels).parent
+    saving_dir.mkdir(parents=True, exist_ok=True)
+    np.save(saving_dir / "processed_strain.py", all_processed)
+    np.save(f'{args.labels}', all_labels)
     np.save(f'{args.labels}', all_labels)
     print('Labels shape', all_labels.shape)
 

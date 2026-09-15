@@ -180,7 +180,7 @@ rule threshold_lock:
     input: 
         arg = GWAK_ROOT / "gwak/deploy/deploy/cli.py",
         config = GWAK_ROOT / "gwak/deploy/configs/threshold.yaml",
-        infer_result = rules.condor_infer.output
+        # infer_result = rules.condor_infer.output
     output:
         Path(
             LOG_DIR / "infer/{ifo_mode}/{ana_ver}/{data_ver}"
@@ -210,7 +210,8 @@ rule scan_outlier:
             LOG_DIR / "infer/{ifo_mode}/{ana_ver}/{data_ver}"
             / "{cl_config}_{coh_mode}_{fm_config}/{noise_run}"
             / "threshold_lock.log"
-        )
+        ),
+        # infer_result = rules.condor_infer.output
     output:
         Path(
             LOG_DIR / "{ifo_mode}/{ana_ver}/{data_ver}"

@@ -27,8 +27,8 @@ cl_config_list = [
     "ResNet_6d",
 ]
 coh_mode_list = [
-    "real",
-    "real_imag",
+    # "real",
+    # "real_imag",
     "abs"
 ]
 fm_config_list = [

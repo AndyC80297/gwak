@@ -151,17 +151,16 @@ class GaussianBBC(BasePrior):
         super().__init__()
         self.params = OrderedDict(
             hrss = LogUniform(1.6e-23, 2.0e-16),
-            duration = Uniform(0.001, 0.1) # This may be too flat in a one second or shorter window
-            # duration = Uniform(0.001, 0.02) # this is the duration of the gaussian in seconds
+            gaussian_width = Uniform(0.001, 0.1) # This may be too flat in a one second or shorter window
         )
 
 class WhiteNoiseBurstBBC(BasePrior):
     def __init__(self):
         super().__init__()
         self.params = OrderedDict(
-            time_envelope = Uniform(2e-2,2),
-            frequency = Uniform(40, 1500),
-            bandwidth = Uniform(10, 200),
+            time_envelope = Uniform(5e-2,2),
+            frequency = Uniform(55, 1500),
+            bandwidth = Uniform(30, 200),
             eccentricity = Uniform(0, 1),
             phase = Uniform(0, torch.pi),
             int_hdot_squared = LogUniform(3.0e-40, 2.5e-34),
