@@ -8,7 +8,7 @@ import numpy as np
 from tqdm import tqdm
 from pathlib import Path
 from collections import defaultdict
-from deploy.libs import accumlator
+from infer_modules import accumlator
 from machinery import ordinal
 
 

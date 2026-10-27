@@ -1,5 +1,5 @@
-condor_nodes: 16
-max_concurrent_node: 16
+condor_nodes: 32
+max_concurrent_node: 32
 condor_kwargs:
   # universe: vanilla
   universe: container
@@ -8,7 +8,7 @@ condor_kwargs:
   gpus_minimum_memory: 16GB
   request_cpus: 4
   request_memory: 16G
-  request_disk: 24G
+  request_disk: 50G
   accounting_group: ligo.dev.o4.burst.allsky.mlyoffline
 
 run_name: one_test
@@ -36,7 +36,7 @@ server_patients: 55
 monitor_patients: 5
 job_rate_limit: 1
 inference_rate: 4 # export overwrite
-singularity_path: null
+singularity_path: /opt/apptainer/bin/singularity
 ana_ver: O4b_cat1
 data_ver: O4b_cat1
 cl_config: null

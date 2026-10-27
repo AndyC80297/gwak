@@ -16,12 +16,13 @@ include: GWAK_ROOT / "gwak/postselection/postselection.smk"
 
 # Working config
 ana_ver_list = [
+    # "gwak_pseudo",
     "O4b_gwak_cat12"
 ]
 ifos_list = ["HL"]
 data_ver_list = [
-    "pseudo",
-    # "O4b_cat1-chunked",
+    # "pseudo",
+    "O4b_cat1-chunked",
     # "O4b_cat1-loud_glitch",
     # "O4b_cat12-katya"
 ]
@@ -32,18 +33,26 @@ cl_config_list = [
     # "ResNet_6d.test",
 ]
 coh_mode_list = [
-    "real",
+    # "real",
     # "real_imag",
     # "abs",
     # "random",
     # "random2",
     # "half",
     "corr15",
-    "corr21",
+    # "corr21",
 ]
-noise_run_list = ["one_year"]
+fm_config_list = [
+    "NF_from_file",
+    # "NF_from_file.test",
+]
+noise_run_list = [
+    # "test_run"
+    # "one_year"
+    "one_decade"
+]
 foreground_run_list = [
-    "bbc-short-0", "bbc-short-1"
+    # "bbc-short-0", "bbc-short-1"
 ]
 run_name_list = noise_run_list + foreground_run_list
 

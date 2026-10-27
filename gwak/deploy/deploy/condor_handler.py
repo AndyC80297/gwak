@@ -90,16 +90,6 @@ def condor_infer_wrapper(
         inj_type -- Class of wavform to inject on timeslide. (default: {None})
     """
     patients = 5
-    # ToDo: import the snakemake confog or remove ver-tag-setting
-    # Snakemake config start
-    data_ver_to_path = {
-        "O4b_cat1": "O4_MDC_background", # Have omicron file
-        "O4b_cat1-chunked": "O4_MDC_background-chunked",
-        "O4b_cat12": "BBC_AnalysisReady_Cat12",
-        "O4b_cat12-katya": "BBC_AnalysisReady_Cat12-katya"
-    }
-    data_tag = data_ver_to_path.get("O4b_cat12-katya", data_ver)
-    # Snakemake config end
     Tb = int(Tb)
     output_dir = gwak_container_output_dir(suffix=f"condor")
     deploy_dir = gwak_dir(suffix="gwak/deploy")()
@@ -114,7 +104,6 @@ def condor_infer_wrapper(
     ifo_mode = ''.join(ifo[0] for ifo in ifos)
     prefix = f"{data_ver}/{cl_config}_{coh_mode}_{fm_config}"
     username = os.environ.get("USER")
-    osdf_data_root = f"osdf:///igwn/cit/staging/{username}/Data/GWAK/{ifo_mode}/{data_tag}"
     osdf_image_root = f"osdf:///igwn/cit/staging/{username}/Container/GWAK"
     osdf_triton_image = f"{osdf_image_root}/triton_image/{image}"
     job_dir = gwak_container_output_dir(
@@ -132,10 +121,6 @@ def condor_infer_wrapper(
         1
     ]
     # File handling
-    if model_repo_dir is None: 
-        model_repo_dir = output_dir(
-            append_path=f"export/{ifo_mode}/{prefix}/{project}"
-        )
     if result_dir is None:
         export_result_dir = gwak_container_output_dir(
             suffix=f"Outputs/export/{ifo_mode}/{ana_ver}/{prefix}/{run_name}"
@@ -148,11 +133,17 @@ def condor_infer_wrapper(
     infer_result_dir.mkdir(parents=True, exist_ok=True)
 
     # Define fname
-    fname = fname(append_path=f"{ana_data}/{ifo_mode}")
+    fname = fname(append_path=f"{ifo_mode}/{ana_data}")
     if run_name == "bbc-short-0":
         fname = O4_bbc_short_0_data_dir(suffix=ifo_mode)()
     if run_name == "bbc-short-1":
         fname = O4_bbc_short_1_data_dir(suffix=ifo_mode)()
+    # The OSDF mirror must be the same folder the file list is built from,
+    # bbc-short dirs are laid out as {data_tag}/{ifo_mode} instead
+    # ToDo: The data_tag should be resolve upfront not in here.
+    # Better to resolve at snakemake level.
+    data_tag = fname.parent.name if fname.name == ifo_mode else fname.name
+    osdf_data_root = f"osdf:///igwn/cit/staging/{username}/Data/GWAK/{ifo_mode}/{data_tag}"
 
     log_file = job_dir / "log.log"
     gwak_logger(log_file)
@@ -201,9 +192,16 @@ def condor_infer_wrapper(
             "class_path": "gwak_container_output_dir",
             "init_args": {"suffix": "Ouputs/export"},
         }
-        node_model_repo_dir = model_repo_dir or (
-            export_job_dir / f"{ifo_mode}/{prefix}/{project}"
-        )
+        triton_image_condor_loc = {
+            "class_path": "gwak_condor_stratch_dir",
+            "init_args": {"suffix": f'{image}'},
+        }
+        # Resolve on the condor node to where export_dir writes the model,
+        # a submit host path doesn't exist there and can't be bind mounted
+        node_model_repo_dir = model_repo_dir or {
+            "class_path": "gwak_container_output_dir",
+            "init_args": {"suffix": f"Ouputs/export/{ifo_mode}/{prefix}/{project}"},
+        }
 
         export_config = write_export_config(
             export_config_file=export_config_file,
@@ -231,7 +229,7 @@ def condor_infer_wrapper(
             result_dir=infer_result_dir,
             project=project,
             model_repo_dir=node_model_repo_dir,
-            image=f"{image}", # Watch out this.
+            image=triton_image_condor_loc, # Watch out this.
             grpc_port=grpc_port,
             patients=server_patients,
             ifos=ifos,

@@ -32,7 +32,7 @@ def write_deploy_bash_file(
     bash_file = bash_root / "condor_cmd.sh"
     header = [
         "#!/bin/bash",
-        "set -euo pipefail",
+        # "set -euo pipefail",
         "",
         "SCRATCH=${_CONDOR_SCRATCH_DIR:-$PWD}",
         "GWAK_ROOT=${GWAK_ROOT:-/opt/gwak}",
@@ -54,6 +54,12 @@ def write_deploy_bash_file(
         "export GWAK_LOG_DIR=$CONTAINER_OUTPUT_DIR/logs",
         "export GWAK_LOUVRE_DIR=$CONTAINER_OUTPUT_DIR/louvre",
         "export IMAGE_DIR=$SCRATCH/images",
+        "",
+        "# Triton runs as a nested apptainer instance, and there is no /dev/fuse",
+        "# inside the job container to mount the SIF, so unpack it to a sandbox",
+        "export APPTAINER_UNSQUASH=1",
+        "export APPTAINER_TMPDIR=$SCRATCH/apptainer_tmp",
+        "mkdir -p \"$APPTAINER_TMPDIR\"",
         "",
         f"mkdir -p \"$GWAK_DATA_DIR/{ifo_mode}/{data_tag}\"",
         "mkdir -p \"$CONTAINER_OUTPUT_DIR\"",
@@ -204,7 +210,7 @@ def write_trainer_bash_file(
     # Add the symlinks killer to the bash script
     header = [
         "#!/bin/bash",
-        "set -euo pipefail",
+        # "set -euo pipefail",
         "",
         "SCRATCH=${_CONDOR_SCRATCH_DIR:-$PWD}",
         "GWAK_ROOT=${GWAK_ROOT:-/opt/gwak}",
