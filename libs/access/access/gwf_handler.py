@@ -10,12 +10,13 @@ import multiprocessing as mp
 import numpy as np
 
 from pathlib import Path
+from typing import Optional
 from urllib.parse import urlparse
 from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from gwdatafind import find_urls
 from gwpy.timeseries import TimeSeries, TimeSeriesList
-from gwpy.segments import DataQualityDict
+from gwpy.segments import DataQualityFlag,DataQualityDict
 
 
 def frame_span(source):
@@ -190,21 +191,33 @@ def get_conincident_segs(
     stop:int,
     state_flag:list,
     dqsegdb_url:str="https://segments.igwn.org",
+    open_state_flag:Optional[list] = None,
 ):
 
     segs = []
     query_flag = []
 
-    for i, ifo in enumerate(ifos):
-        query_flag.append(f"{ifo}:{state_flag[i]}")
+    if open_state_flag is not None:
 
-    flags = DataQualityDict.query_dqsegdb(
-        query_flag,
-        start,
-        stop,
-        on_error="raise", # warn
-        host=dqsegdb_url,
-    )
+        flags = DataQualityDict({
+            name: DataQualityFlag.fetch_open_data(
+                name, start, stop
+            )
+            for name in open_state_flag
+        })
+        active_segs = flags.intersection().active.to_table()
+
+    else:
+        for i, ifo in enumerate(ifos):
+            query_flag.append(f"{ifo}:{state_flag[i]}")
+
+        flags = DataQualityDict.query_dqsegdb(
+            query_flag,
+            start,
+            stop,
+            on_error="raise", # warn
+            host=dqsegdb_url,
+        )
 
     try:
         active_table = flags.intersection().active.to_table()
@@ -251,7 +264,6 @@ def get_background(
             urltype=urltype,
             host=host,
         )
-        
         logging.info(f"Found {len(files)} files for {ifo}")
         if len(files) == 0:
             raise ValueError(f"No files found for {ifo} between {seg_start} and {seg_end}")

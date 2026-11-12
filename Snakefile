@@ -66,7 +66,8 @@ rule pull_all:
     input:
         expand(rules.pull_data_from_segments.output,
             segment_type=[
-                "o4.strain",
+                # "o4.strain",
+                "o4.cat3-strain",
                 # 'o4b.bbc-background-2',
                 # 'o4b.short-0-2', 
                 # 'o4b.short-1-2', 
