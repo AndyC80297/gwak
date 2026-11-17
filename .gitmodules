@@ -11,3 +11,6 @@
 [submodule "gwak-dlc"]
     path = gwak-dlc
     url = git@github.com:AndyC80297/gwak-dlc.git
+[submodule "lightray"]
+	path = lightray
+	url = git@github.com:ML4GW/lightray.git
