@@ -13,6 +13,7 @@ dependencies = [
     "jsonargparse[signatures]>=4.27.7",
     "trainer",
     "transforms",
+    "lightray",
     "machinery",
     "ml4gw",
     "h5py==3.16.0",
@@ -39,6 +40,8 @@ dev = [
 
 [tool.uv]
 extra-index-url = ["https://pypi.nvidia.com/"]
+# ml4gw pins numpy<2; newer pyarrow (pulled in by lightray) requires numpy>=2
+constraint-dependencies = ["pyarrow<22"]
 
 [[tool.uv.index]]
 name = "torch"
@@ -48,6 +51,7 @@ explicit = true
 [tool.uv.sources]
 access = {path = "../../libs/access", editable = true }
 machinery = {path = "../../libs/machinery", editable = true }
+lightray = { path = "../../lightray", editable = true }
 ml4gw = { path = "../../ml4gw", editable = true }
 trainer = {path = "../../libs/trainer", editable = true }
 transforms = {path = "../../libs/transforms", editable = true }

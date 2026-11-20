@@ -31,8 +31,17 @@ N = 4096
 MAXLAG = 44                                     # samples = 10.7 ms
 LAGS = np.arange(-MAXLAG, MAXLAG + 1)
 
-TD_FEATURES = ["pearson_0lag", "cc_maxlag_1s", "cc_maxlag_win512", "cc_band_maxz", "msc_max",
-               "xc_env_w64", "xc_env_w128", "xc_env_w256", "xc_env_w256_lag_ms"]
+TD_FEATURES = [
+    "pearson_0lag",
+    "cc_maxlag_1s",
+    "cc_maxlag_win512",
+    "cc_band_maxz",
+    "msc_max",
+    "xc_env_w64",
+    "xc_env_w128",
+    "xc_env_w256",
+    "xc_env_w256_lag_ms",
+]
 TF_COH_FEATURES = ["ccen_tf", "ccen_tf_reg", "wcc2_tf", "balance", "dt_peak_ms", "dlogf_peak"]
 TF_LOUD_FEATURES = ["ecoh_tf", "enet_peak", "epeak_H", "epeak_L", "e_clu_H", "e_clu_L"]
 FEATURES = {
@@ -193,14 +202,14 @@ class _Plane(nn.Module):
         return {
             "ccen_tf": torch.gather(cce, 1, i)[:, 0],
             "wcc2_tf": aCi / torch.sqrt(EH * ELi + 1e-24),
-            "ecoh_tf": aCi,
-            "e_clu_H": EH,
-            "e_clu_L": EL0,
+            "ecoh_tf": torch.log(aCi),
+            "e_clu_H": torch.log(EH),
+            "e_clu_L": torch.log(EL0),
             "balance": torch.abs(torch.log((EH + 1e-6) / (EL0 + 1e-6))),
-            "enet_peak": vals[:, 0],
-            "epeak_H": torch.gather(e[:, 0], 1, kh.unsqueeze(-1))[:, 0],
-            "epeak_L": torch.gather(e[:, 1], 1, kl.unsqueeze(-1))[:, 0],
-            "dt_peak_ms": torch.abs(th - tl) * 1e3,
+            "enet_peak": torch.log(vals[:, 0]),
+            "epeak_H": torch.log(torch.gather(e[:, 0], 1, kh.unsqueeze(-1))[:, 0]),
+            "epeak_L": torch.log(torch.gather(e[:, 1], 1, kl.unsqueeze(-1))[:, 0]),
+            "dt_peak_ms": torch.abs(th - tl),
             "dlogf_peak": torch.abs(torch.log(self.freq[self.row_of[kh]] / self.freq[self.row_of[kl]])),
         }
 
